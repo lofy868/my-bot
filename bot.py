@@ -1,525 +1,507 @@
-import logging
-import random
-import sqlite3
 import telebot
-from datetime import datetime, timedelta
+import time
+import os
+from gtts import gTTS
+import random
+from telebot.types import ChatMember
 from telebot import types
-import re
+from flask import Flask
+import threading
 
-# إعداد التسجيل
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# 🔧 إضافة Flask للاستضافة السحابية
+app = Flask(__name__)
 
-# توكن البوت
-TOKEN = "8434698011:AAFI4P7_MGQvz8RMm9KjbOXIt-hKoMhThcc"
+# ✅ إصلاح المتغيرات مع الإيدي الحقيقي
+token = "8434698011:AAFI4P7_MGQvz8RMm9KjbOXIt-hKoMhThcc"
+bot = telebot.TeleBot(token)
 
-# إنشاء كائن البوت
-bot = telebot.TeleBot(TOKEN)
+# ✅ تعريف المتغيرات مع الإيدي الحقيقي
+admin_id = "8092119482"  # الإيدي الحقيقي
+userk = [8092119482]     # الإيدي الحقيقي
+locked_groups = []
+muted_users = {}
+locked_stickers = False
 
-# قاعدة البيانات
-def init_db():
-    conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-    cursor = conn.cursor()
-    
-    # جدول الألعاب
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_balances (
-            user_id INTEGER PRIMARY KEY,
-            balance INTEGER DEFAULT 1000,
-            last_daily DATE,
-            points INTEGER DEFAULT 0,
-            level INTEGER DEFAULT 1,
-            last_work TEXT,
-            rank TEXT DEFAULT 'عضو'
-        )
-    ''')
-    
-    # جدول الأسئلة
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS trivia_questions (
-            id INTEGER PRIMARY KEY,
-            question TEXT,
-            option1 TEXT,
-            option2 TEXT,
-            option3 TEXT,
-            option4 TEXT,
-            correct_answer INTEGER
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
+# ✅ قناة الاشتراك الإجباري
+CHANNEL_USERNAME = "lofy_2000"  # بدون @
+CHANNEL_URL = "https://t.me/lofy_2000"
 
-# إضافة أسئلة عينة
-def add_sample_questions():
-    conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-    cursor = conn.cursor()
-    
-    questions = [
-        ("ما هي عاصمة فرنسا؟", "لندن", "برلين", "باريس", "مدريد", 3),
-        ("كم عدد الكواكب في النظام الشمسي؟", "7", "8", "9", "10", 2),
-        ("ما هو العنصر الكيميائي للذهب؟", "Ag", "Fe", "Au", "Cu", 3),
-        ("من كتب رواية 'البؤساء'؟", "تولستوي", "ديستويفسكي", "فيكتور هوغو", "شكسبير", 3),
-        ("ما هو أطول نهر في العالم؟", "النيل", "الأمازون", "المسيسبي", "الدانوب", 1)
-    ]
-    
-    cursor.executemany('''
-        INSERT OR IGNORE INTO trivia_questions 
-        (question, option1, option2, option3, option4, correct_answer)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', questions)
-    
-    conn.commit()
-    conn.close()
+btn = types.InlineKeyboardButton(text='صانع بوتات الامير 𓅂', url="http://t.me/MOQ_Bot?start")
 
-init_db()
-add_sample_questions()
+@app.route('/')
+def home():
+    return "✅ البوت يعمل بنجاح على Cyclic!"
 
-# نظام البنك والألعاب
-def get_user_balance(user_id):
-    conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('SELECT balance, points, level, rank FROM user_balances WHERE user_id = ?', (user_id,))
-    result = cursor.fetchone()
-    conn.close()
-    
-    if result:
-        return result[0], result[1], result[2], result[3]  # balance, points, level, rank
+@app.route('/health')
+def health():
+    return "🟢 Healthy", 200
+
+# ✅ دالة التحقق من الاشتراك في القناة
+def check_subscription(user_id):
+    try:
+        chat_member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return chat_member.status in ['member', 'administrator', 'creator']
+    except:
+        return False
+
+# ✅ إنشاء زر الاشتراك في القناة
+def create_subscription_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+    subscribe_btn = types.InlineKeyboardButton(text="📢 اشترك في القناة", url=CHANNEL_URL)
+    check_btn = types.InlineKeyboardButton(text="✅ تحقق من الاشتراك", callback_data="check_subscription")
+    keyboard.add(subscribe_btn)
+    keyboard.add(check_btn)
+    return keyboard
+
+# ✅ معالج callback للتحقق من الاشتراك
+@bot.callback_query_handler(func=lambda call: call.data == "check_subscription")
+def check_subscription_callback(call):
+    user_id = call.from_user.id
+    if check_subscription(user_id):
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        bot.send_message(call.message.chat.id, "🎉 شكراً للاشتراك! يمكنك الآن استخدام البوت.")
     else:
-        # إنشاء حساب جديد للاعب
-        conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute('INSERT INTO user_balances (user_id, balance, points, level, rank) VALUES (?, ?, ?, ?, ?)', 
-                      (user_id, 1000, 0, 1, 'عضو'))
-        conn.commit()
-        conn.close()
-        return 1000, 0, 1, 'عضو'
+        bot.answer_callback_query(call.id, "❌ لم تشترك بعد في القناة!", show_alert=True)
 
-def update_user_balance(user_id, amount):
-    balance, points, level, rank = get_user_balance(user_id)
-    new_balance = balance + amount
-    
-    conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('UPDATE user_balances SET balance = ? WHERE user_id = ?', (new_balance, user_id))
-    conn.commit()
-    conn.close()
-    
-    return new_balance
+# ✅ التحقق من الاشتراك قبل أي أمر
+def subscription_required(func):
+    def wrapper(message):
+        user_id = message.from_user.id
+        
+        # ✅ استثناء الأوامر الأساسية
+        if message.text in ["/start", "الاوامر"]:
+            return func(message)
+            
+        # ✅ التحقق من الاشتراك
+        if not check_subscription(user_id):
+            subscription_msg = f"""
+⚠️ **عذراً، يجب الاشتراك في القناة أولاً**
 
-def update_user_points(user_id, points_change):
-    balance, points, level, rank = get_user_balance(user_id)
-    new_points = points + points_change
-    
-    conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('UPDATE user_balances SET points = ? WHERE user_id = ?', (new_points, user_id))
-    conn.commit()
-    conn.close()
-    
-    return new_points
+📢 **قناة البوت الرسمية:**
+{CHANNEL_URL}
 
-def update_user_rank(user_id, new_rank):
-    conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('UPDATE user_balances SET rank = ? WHERE user_id = ?', (new_rank, user_id))
-    conn.commit()
-    conn.close()
-    return new_rank
+✅ بعد الاشتراك، اضغط على زر "تحقق من الاشتراك"
+            """
+            bot.send_message(
+                message.chat.id, 
+                subscription_msg, 
+                reply_markup=create_subscription_keyboard(),
+                parse_mode="markdown"
+            )
+            return
+        
+        return func(message)
+    return wrapper
 
-def can_work(user_id):
-    conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('SELECT last_work FROM user_balances WHERE user_id = ?', (user_id,))
-    result = cursor.fetchone()
-    conn.close()
-    
-    if result and result[0]:
-        last_work = datetime.fromisoformat(result[0])
-        if datetime.now() - last_work < timedelta(hours=1):
-            return False
-    return True
-
-# نظام الردود الآلية
-def handle_auto_replies(message):
-    text = message.text.lower().strip()
-    
-    # ردود الترحيب
-    if text in ['السلام عليكم', 'سلام عليكم', 'السلام']:
-        bot.reply_to(message, "وعليكم السلام حبيبي ❤️")
-        return True
-    
-    elif text in ['هلا', 'هلا والله', 'اهلا']:
-        bot.reply_to(message, "نورت ياعمري.. 😍")
-        return True
-    
-    elif text in ['وي', 'واي', 'ويي']:
-        bot.reply_to(message, "وي بالعسل نورتنا 😘")
-        return True
-    
-    return False
-
-# معالج جميع الرسائل النصية
-@bot.message_handler(func=lambda message: True)
-def handle_all_messages(message):
-    text = message.text.lower().strip()
+@bot.message_handler(commands=["start"])
+def start(message):
     user_id = message.from_user.id
-    chat_id = message.chat.id
     
-    # معالجة الردود الآلية أولاً
-    if handle_auto_replies(message):
+    # ✅ التحقق من الاشتراك
+    if not check_subscription(user_id):
+        subscription_msg = f"""
+🎯 **مرحباً {message.from_user.first_name}!**
+
+🤖 **بوت حماية المجموعات المتقدم**
+
+⚠️ **للاستخدام يجب الاشتراك في قناتنا أولاً:**
+
+📢 **القناة الرسمية:**
+{CHANNEL_URL}
+
+✅ **بعد الاشتراك اضغط على زر التحقق**
+        """
+        bot.send_message(
+            message.chat.id, 
+            subscription_msg, 
+            reply_markup=create_subscription_keyboard(),
+            parse_mode="markdown"
+        )
         return
     
-    # أمر البداية
-    if text in ['بدء', 'start', 'اهلا', 'مرحبا']:
-        user = message.from_user
-        bot.reply_to(message, 
-            f'مرحباً {user.first_name}! 👋\n'
-            'أنا بوت متطور لإدارة المجموعات والألعاب 🎮\n'
-            'اكتب "الاوامر" لرؤية جميع الأوامر المتاحة'
-        )
-    
-    # عرض الأوامر
-    elif text in ['الاوامر', 'اوامر', 'commands', 'مساعده', 'مساعدة']:
-        commands_text = """
-🎮 **أوامر الألعاب:**
-بنك - عرض رصيدك ونقاطك
-يومي - الحصول على المكافأة اليومية
-مراهنة [المبلغ] - لعبة المراهنة
-عمل - عمل ساعي (كل ساعة)
+    # ✅ إذا كان مشترك، عرض رسالة البداية
+    brok = types.InlineKeyboardMarkup()
+    brok.add(btn)
+    bot.reply_to(message, text='''⌯︙أهلآ بك عزيزي 🙋‍♂
+⌯︙اختصاص البوت حماية المجموعات 🔥
+⌯︙لتفعيل البوت عليك اتباع مايلي 👇...
+⌯︙اضف البوت الى مجموعتك 
+⌯︙ارفعه ادمن {مشرف} 
+⌯︙ارسل كلمة { تفعيل } ليتم تشغيل البوت في مجموعتك ''', reply_markup=brok)
 
-❓ **أوامر الأسئلة:**
-سؤال - سؤال عشوائي بجوائز
-اضف سؤال [السؤال|الخيار1|الخيار2|الخيار3|الخيار4|الإجابة] - إضافة سؤال جديد
+# ✅ تطبيق الاشتراك الإجباري على جميع الأوامر
+@bot.message_handler(func=lambda message: message.text == "الاوامر")
+@subscription_required
+def lock_images(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    member = bot.get_chat_member(chat_id, user_id)
 
-🎯 **الألعاب:**
-اكس او - لعبة X O مع البوت
-حجر ورقة مقص [h/p/s] - لعبة حجر ورقة مقص
-نرد - لعبة النرد
-حظ - اختبار حظك
+    if member.status in ['administrator', 'creator']:
+        if chat_id not in locked_groups:
+            locked_groups.append(chat_id)
+        bot.reply_to(message, """⌁︙اهلا عزيزي الادمن 🧜🏻 .
+⌁︙ اوامر الحماية ارسل ↫`M1`
+⌁︙اوامر الالعاب ارسل ↫`M2`
+⌁︙اوامر التسلية ارسل ↫`M3`
+⌁︙اوامر اخرى ارسل ↫`M4`
+ ⌁︙اضغط على الامر لـ النسخ 👾""", parse_mode="markdown")
+    else:
+        bot.reply_to(message, "⌁︙انت مو ادمن ياعضو 💃🏻 !")
 
-📊 **المعلومات:**
-نقاطي - عرض نقاطك ومستواك
-ترقية - ترقية مستواك
-رتبتي - عرض رتبتك الحالية
-الاوامر - عرض هذه القائمة
+@bot.message_handler(func=lambda message: message.text == "تفعيل")
+@subscription_required
+def lock_images(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    member = bot.get_chat_member(chat_id, user_id)
 
-🛡️ **نظام الترقيات:**
-ادمن - ترقية إلى ادمن
-مدير - ترقية إلى مدير
-منشئ - ترقية إلى منشئ
-مميز - ترقية إلى مميز
-ابلع - تنزيل كل الترقيات
+    if member.status in ['administrator', 'creator']:
+        if chat_id not in locked_groups:
+            locked_groups.append(chat_id)
+        bot.reply_to(message, """*- تـم تفعيل البوت بنجاح ✅
 
-🛡️ **الإدارة (للمشرفين):**
-كتم [ثواني] - كتم مستخدم (بالرد)
-الغاء كتم - إلغاء الكتم (بالرد)
-حظر - حظر مستخدم (بالرد)
-الغاء حظر - إلغاء الحظر (بالرد)
-طرد - طرد مستخدم (بالرد)
-مسح [عدد] - حذف رسائل
+• ارسل (*`الاوامر`*) لمعرفة اوامر البوت 💯*""", parse_mode="markdown")
+    else:
+        bot.reply_to(message, "⌁︙انت مو ادمن ياعضو 💃🏻 !")
 
-💬 **الردود الآلية:**
-السلام عليكم - رد ترحيب
-هلا - رد ترحيب
-وي - رد ترحيب
-        """
-        bot.reply_to(message, commands_text)
-    
-    # أمر البنك
-    elif text in ['بنك', 'رصيد', 'فلوس', 'balance']:
-        balance, points, level, rank = get_user_balance(user_id)
-        bot.reply_to(message, f"💰 رصيدك: {balance} قطعة ذهبية\n⭐ نقاطك: {points}\n📊 مستواك: {level}\n🎖️ رتبتك: {rank}")
-    
-    # الأمر اليومي
-    elif text in ['يومي', 'مكافأة', 'daily']:
-        user_id = message.from_user.id
+@bot.message_handler(func=lambda message: message.text == "M1")
+@subscription_required
+def lock_images(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    member = bot.get_chat_member(chat_id, user_id)
+
+    if member.status in ['administrator', 'creator']:
+        if chat_id not in locked_groups:
+            locked_groups.append(chat_id)
+        bot.reply_to(message, """*⌁︙اهلا عزيزي الادمن باوامر الحماية 🛡️ .*
         
-        conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute('SELECT last_daily FROM user_balances WHERE user_id = ?', (user_id,))
-        result = cursor.fetchone()
+⌁︙`حظر` | (بالرد )* يحظر العضو *
+⌁︙`الغاء الحظر` | (بالرد ) *يلغي حظر العضو*
+⌁︙`تقييد` | ( بالرد ) *يقييد العضو من الكتابة*
+⌁︙`الغاء التقييد` | ( بالرد ) *يلغي تقييد العضو*
+⌁︙`تقييد وقتي` | ( بالرد ) *يقييد العضو لمدة 10 دقائق*
+⌁︙`تحذير` | ( بالرد ) * إذا تم تحذير الشخص ثلاث مرات يتم تقييده*
+⌁︙`قفل الصور` | *يبدأ البوت بمسح الصور التي يرسلها الاعضاء*
+⌁︙`فتح الصور` | *يتوقف البوت عن مسح الصور التي يرسلها الاعضاء*
+⌁︙`قفل الملصقات` | *يبدأ البوت بمسح الملصقات التي يرسلها الاعضاء*
+⌁︙`فتح الملصقات` | *يتوقف البوت عن مسح الملصقات التي يرسلها الاعضاء*
+
+*⌁︙ يستطيع التحكم في هذه الأوامر المشرفين والأمنية في المجموعة ✅*
+⌁︙اضغط على اي امر لنسخه 👾 .""", parse_mode="markdown")
+    else:
+        bot.reply_to(message, "⌁︙انت مو ادمن ياعضو 💃🏻 !")        
+
+@bot.message_handler(func=lambda msg: msg.text is not None and "M2" in msg.text)
+@subscription_required
+def reply_hello(message):
+    bot.reply_to(message, """*⌁︙اهلا عزيزي باوامر الالعاب 🎮🕹️ .*
+⌁︙`نرد` ↫يرسلك رقم من 1 الى 6 اذا طلع 6 انت فايز بس اذا طلع 5 او 4 او 3 او 2 او 1 تخسر 😔 .
+⌁︙`سلة` ↫يرسل لك لعبة كرة السلة .
+⌁︙`كرة` ↫يرسل لك لعبة كرة القدم .
+⌁︙`الاسرع` ↫يرسل لك كلمة واسرع احد يكتبها يفوز .
+- اضغط على اسم اللعبة للنسخ 👾 .""", parse_mode="markdown")
+
+@bot.message_handler(func=lambda msg: msg.text is not None and "الالعاب" in msg.text)
+@subscription_required
+def reply_hello(message):
+    bot.reply_to(message, """*⌁︙اهلا عزيزي  باوامر الالعاب 🎮🕹️ .*
+⌁︙`نرد` ↫يرسلك رقم من 1 الى 6 اذا طلع 6 انت فايز بس اذا طلع 5 او 4 او 3 او 2 او 1 تخسر 😔 .
+⌁︙`سلة` ↫يرسل لك لعبة كرة السلة .
+⌁︙`كرة` ↫يرسل لك لعبة كرة القدم .
+⌁︙`الاسرع` ↫يرسل لك كلمة واسرع شخص يكتبها يفوز .
+- اضغط على اسم اللعبة للنسخ 👾 .**""", parse_mode="markdown")
         
-        now = datetime.now()
-        
-        if result and result[0]:
-            last_daily = datetime.strptime(result[0], '%Y-%m-%d')
-            if now.date() == last_daily.date():
-                bot.reply_to(message, "❌ لقد حصلت على المكافأة اليومية بالفعل! عد غداً")
-                conn.close()
+@bot.message_handler(func=lambda msg: msg.text is not None and "M3" in msg.text)
+@subscription_required
+def reply_hello(message):
+    bot.reply_to(message, """*⌁︙اهلا عزيزي باوامر التسلية 💃🏻 .*
+⌁︙رد على الشخص من اجل استعمال الامر
+⌁︙`رفع حلو`
+⌁︙`ذكائي`
+⌁︙`غبائي`
+⌁︙`تحبني`
+*⌁︙اضغط على اي وحدة لنسخها 👾 .
+⌁︙الاوامر يقدر يستخدمها العضو عادي 💃🏻 .*
+⌁︙قريباً اوامر اكثر 😉 .""", parse_mode="markdown")                
+
+@bot.message_handler(func=lambda msg: msg.text is not None and "M4" in msg.text)
+@subscription_required
+def reply_hello(message):
+    bot.reply_to(message, """*⌁︙اهلا عزيزي باوامر أخرى 🪗 .*
+⌁︙`ايدي`
+⌁︙`ايدي المجموعة`
+⌁︙`الرابط`
+⌁︙`المالك`
+⌁︙`سورس`
+⌁︙`السورس`
+⌁︙`تفاعلي`
+⌁︙`شعر`
+⌁︙`سوره`
+*⌁︙اوامر النطق 🔊... *
+⌁︙`انطق` + الرسالة 
+*⌁︙مثال* ( انطق مرحبا )
+*⌁︙اضغط على اي وحدة لنسخها 👾 .*""", parse_mode="markdown")                                     
+
+@bot.message_handler(func=lambda message: message.text == 'المالك')
+@subscription_required
+def get_group_owner(message):
+    if message.chat.type == 'supergroup' or message.chat.type == 'group':
+        chat_id = message.chat.id
+        chat_admins = bot.get_chat_administrators(chat_id)
+
+        for admin in chat_admins:
+            if admin.status == 'creator':
+                owner_id = admin.user.id
+                owner_username = admin.user.username
+                owner_name = admin.user.first_name
+
+                reply = f'''- 𝐆𝐑𝐎𝗨𝐏 𝐎𝐖𝐍𝐄𝐑 ✅ |
+
+• 𝗨𝐒𝐄𝐑𝐍𝐀𝐌𝐄 :- @{owner_username} 
+• 𝐍𝐀𝐌𝐄 :- {owner_name}
+• 𝐈𝐃 :- {owner_id}'''
+                bot.reply_to(message, reply)
                 return
-        
-        # منح المكافأة
-        reward = random.randint(100, 300)
-        points_reward = random.randint(5, 15)
-        new_balance = update_user_balance(user_id, reward)
-        new_points = update_user_points(user_id, points_reward)
-        
-        cursor.execute('UPDATE user_balances SET last_daily = ? WHERE user_id = ?', (now.strftime('%Y-%m-%d'), user_id))
-        conn.commit()
-        conn.close()
-        
-        bot.reply_to(message, f"🎉 حصلت على {reward} ذهب و {points_reward} نقطة! رصيدك: {new_balance}")
-    
-    # أمر المراهنة
-    elif text.startswith('مراهنة'):
-        try:
-            amount = int(text.split()[1])
-            if amount <= 0:
-                bot.reply_to(message, "❌ المبلغ يجب أن يكون موجباً")
-                return
-        except:
-            bot.reply_to(message, "❌ استخدام خاطئ: مراهنة [المبلغ]")
-            return
-        
-        user_id = message.from_user.id
-        balance, points, level, rank = get_user_balance(user_id)
-        
-        if balance < amount:
-            bot.reply_to(message, "❌ رصيدك غير كافي")
-            return
-        
-        if random.random() < 0.5:
-            win_amount = amount
-            new_balance = update_user_balance(user_id, win_amount)
-            new_points = update_user_points(user_id, 5)
-            bot.reply_to(message, f"🎉 ربحت! فزت ب {win_amount} ذهب! رصيدك الجديد: {new_balance}")
-        else:
-            new_balance = update_user_balance(user_id, -amount)
-            new_points = update_user_points(user_id, 2)
-            bot.reply_to(message, f"💔 خسرت! خسرت {amount} ذهب. رصيدك الجديد: {new_balance}")
-    
-    # أمر العمل
-    elif text in ['عمل', 'شغل', 'work']:
-        user_id = message.from_user.id
-        if not can_work(user_id):
-            bot.reply_to(message, "⏰ انتظر ساعة قبل العمل مرة أخرى!")
-            return
-        
-        earnings = random.randint(20, 100)
-        points_earned = 5
-        new_balance = update_user_balance(user_id, earnings)
-        new_points = update_user_points(user_id, points_earned)
-        
-        conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute('UPDATE user_balances SET last_work = ? WHERE user_id = ?', 
-                      (datetime.now().isoformat(), user_id))
-        conn.commit()
-        conn.close()
-        
-        bot.reply_to(message, f"💼 عملت! +{earnings} ذهب +{points_earned} نقاط")
-    
-    # أمر النقاط
-    elif text in ['نقاطي', 'نقاط', 'points']:
-        balance, points, level, rank = get_user_balance(user_id)
-        bot.reply_to(message, f"⭐ نقاطك: {points}\n📊 مستواك: {level}\n🎖️ رتبتك: {rank}")
-    
-    # أمر الترقية
-    elif text in ['ترقية', 'levelup']:
-        balance, points, level, rank = get_user_balance(user_id)
-        required_points = 50 * level
-        
-        if points >= required_points:
-            new_points = update_user_points(user_id, -required_points)
-            conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-            cursor = conn.cursor()
-            cursor.execute('UPDATE user_balances SET level = level + 1 WHERE user_id = ?', (user_id,))
-            conn.commit()
-            conn.close()
-            bot.reply_to(message, f"🎉 ترقية! المستوى الجديد: {level + 1}")
-        else:
-            bot.reply_to(message, f"❌ تحتاج {required_points} نقطة للترقية (لديك {points})")
-    
-    # أمر الرتبة
-    elif text in ['رتبتي', 'رتبه', 'رتبة', 'رتب']:
-        balance, points, level, rank = get_user_balance(user_id)
-        bot.reply_to(message, f"🎖️ رتبتك الحالية: {rank}")
-    
-    # نظام الترقيات
-    elif text == 'ادمن':
-        new_rank = update_user_rank(user_id, 'ادمن')
-        bot.reply_to(message, f"🎉 تمت ترقيتك إلى: {new_rank}")
-    
-    elif text == 'مدير':
-        new_rank = update_user_rank(user_id, 'مدير')
-        bot.reply_to(message, f"🎉 تمت ترقيتك إلى: {new_rank}")
-    
-    elif text == 'منشئ':
-        new_rank = update_user_rank(user_id, 'منشئ')
-        bot.reply_to(message, f"🎉 تمت ترقيتك إلى: {new_rank}")
-    
-    elif text == 'مميز':
-        new_rank = update_user_rank(user_id, 'مميز')
-        bot.reply_to(message, f"🎉 تمت ترقيتك إلى: {new_rank}")
-    
-    elif text == 'ابلع':
-        new_rank = update_user_rank(user_id, 'عضو')
-        bot.reply_to(message, f"📉 تم تنزيلك إلى: {new_rank}")
-    
-    # لعبة X O
-    elif text in ['اكس او', 'xo', 'x o']:
-        # يمكنك إضافة كود لعبة X O هنا
-        bot.reply_to(message, "🎮 لعبة X O قريباً...")
-    
-    # لعبة حجر ورقة مقص
-    elif text.startswith('حجر ورقة مقص'):
-        user_id = message.from_user.id
-        try:
-            choice = text.split()[-1].lower()
-        except:
-            bot.reply_to(message, "❌ استخدام: حجر ورقة مقص [h=حجر, p=ورقة, s=مقص]")
-            return
-        
-        choices = {'h': 'حجر', 'p': 'ورقة', 's': 'مقص'}
-        if choice not in choices:
-            bot.reply_to(message, "❌ اختيار غير صحيح! استخدم h, p, أو s")
-            return
-        
-        bot_choice = random.choice(['h', 'p', 's'])
-        user_choice_text = choices[choice]
-        bot_choice_text = choices[bot_choice]
-        
-        if choice == bot_choice:
-            result = "🤝 تعادل!"
-            points = 3
-        elif (choice == 'h' and bot_choice == 's') or (choice == 'p' and bot_choice == 'h') or (choice == 's' and bot_choice == 'p'):
-            result = "🎉 فزت!"
-            points = 10
-            update_user_balance(user_id, 50)
-        else:
-            result = "💔 خسرت!"
-            points = 1
-        
-        update_user_points(user_id, points)
-        bot.reply_to(message, f"🎮 حجر ورقة مقص:\n\nاختيارك: {user_choice_text}\nاختيار البوت: {bot_choice_text}\n\n{result} (+{points} نقاط)")
-    
-    # لعبة النرد
-    elif text in ['نرد', 'زهر', 'dice']:
-        user_id = message.from_user.id
-        user_dice = random.randint(1, 6)
-        bot_dice = random.randint(1, 6)
-        
-        result_text = f"🎲 نردك: {user_dice}\n🤖 نرد البوت: {bot_dice}\n\n"
-        
-        if user_dice > bot_dice:
-            win_amount = 30
-            update_user_balance(user_id, win_amount)
-            points = 8
-            result_text += f"🎉 فزت! ربحت {win_amount} ذهب!"
-        elif user_dice < bot_dice:
-            points = 3
-            result_text += f"💔 خسرت! حاول مرة أخرى."
-        else:
-            points = 5
-            result_text += f"🤝 تعادل!"
-        
-        update_user_points(user_id, points)
-        bot.reply_to(message, result_text + f" (+{points} نقاط)")
-    
-    # لعبة الحظ
-    elif text in ['حظ', 'حظي', 'luck']:
-        user_id = message.from_user.id
-        luck = random.randint(1, 100)
-        
-        if luck <= 20:
-            win_amount = random.randint(50, 200)
-            update_user_balance(user_id, win_amount)
-            points = 15
-            result = f"🎉 حظ سعيد! فزت ب {win_amount} ذهب!"
-        else:
-            loss_amount = 50
-            balance, points_curr, level, rank = get_user_balance(user_id)
-            if balance >= loss_amount:
-                update_user_balance(user_id, -loss_amount)
-                result = f"💔 حظ سيء! خسرت {loss_amount} ذهب."
-            else:
-                result = "💔 حظ سيء! لكن رصيدك غير كافي للخسارة."
-            points = 5
-        
-        update_user_points(user_id, points)
-        bot.reply_to(message, f"🎰 لعبة الحظ:\n\n{result} (+{points} نقاط)")
-    
-    # أمر السؤال
-    elif text in ['سؤال', 'اسئله', 'trivia']:
-        # يمكنك إضافة كود الأسئلة هنا
-        bot.reply_to(message, "❓ نظام الأسئلة قريباً...")
-    
-    # أوامر الإدارة (للمجموعات فقط)
-    elif message.chat.type in ['group', 'supergroup']:
-        # أمر الكتم
-        if text.startswith('كتم') and message.reply_to_message:
-            try:
-                target_id = message.reply_to_message.from_user.id
-                duration = 3600  # ساعة افتراضياً
-                
-                if len(text.split()) > 1:
-                    duration = int(text.split()[1])
-                
-                bot.restrict_chat_member(chat_id, target_id, 
-                                       until_date=int((datetime.now() + timedelta(seconds=duration)).timestamp()),
-                                       permissions=types.ChatPermissions(can_send_messages=False))
-                bot.reply_to(message, f"✅ كتم لـ {duration} ثانية")
-            except Exception as e:
-                bot.reply_to(message, f"❌ خطأ: {e}")
-        
-        # إلغاء الكتم
-        elif text.startswith('الغاء كتم') and message.reply_to_message:
-            try:
-                target_id = message.reply_to_message.from_user.id
-                bot.restrict_chat_member(chat_id, target_id,
-                                       permissions=types.ChatPermissions(can_send_messages=True))
-                bot.reply_to(message, "✅ إلغاء كتم")
-            except Exception as e:
-                bot.reply_to(message, f"❌ خطأ: {e}")
-        
-        # أمر الحظر
-        elif text.startswith('حظر') and message.reply_to_message:
-            try:
-                target_id = message.reply_to_message.from_user.id
-                bot.ban_chat_member(chat_id, target_id)
-                bot.reply_to(message, "✅ تم الحظر")
-            except Exception as e:
-                bot.reply_to(message, f"❌ خطأ: {e}")
-        
-        # إلغاء الحظر
-        elif text.startswith('الغاء حظر') and message.reply_to_message:
-            try:
-                target_id = message.reply_to_message.from_user.id
-                bot.unban_chat_member(chat_id, target_id)
-                bot.reply_to(message, "✅ إلغاء حظر")
-            except Exception as e:
-                bot.reply_to(message, f"❌ خطأ: {e}")
-        
-        # أمر الطرد
-        elif text.startswith('طرد') and message.reply_to_message:
-            try:
-                target_id = message.reply_to_message.from_user.id
-                bot.ban_chat_member(chat_id, target_id)
-                bot.unban_chat_member(chat_id, target_id)
-                bot.reply_to(message, "✅ تم الطرد")
-            except Exception as e:
-                bot.reply_to(message, f"❌ خطأ: {e}")
-        
-        # أمر المسح
-        elif text.startswith('مسح'):
-            try:
-                count = int(text.split()[1]) if len(text.split()) > 1 else 5
-                for i in range(count):
-                    try:
-                        bot.delete_message(chat_id, message.message_id - i - 1)
-                    except:
-                        pass
-                bot.reply_to(message, f"✅ تم مسح {count} رسائل")
-            except Exception as e:
-                bot.reply_to(message, f"❌ خطأ: {e}")
+        bot.reply_to(message, 'لا يمكن العثور على معلومات المالك في هذه المجموعة.')
+    else:
+        bot.reply_to(message, 'هذا الأمر يمكن استخدامه فقط في المجموعات.')
 
-# تشغيل البوت
-if __name__ == '__main__':
-    print("🤖 البوت المطور يعمل الآن...")
-    print("📝 الآن يمكنك استخدام الأوامر بدون /")
-    print("🎮 تم إضافة نظام الترقيات والردود الآلية!")
-    bot.infinity_polling()
+@bot.message_handler(func=lambda message: message.text.startswith('حظر') and message.reply_to_message is not None)
+@subscription_required
+def ban(message):
+    if str(message.from_user.id) != admin_id:
+        bot.send_message(message.chat.id, "أنت مو مشرف")
+    else:
+        cid = message.chat.id
+        uid = message.reply_to_message.from_user.id
+        bot.kick_chat_member(cid, uid)
+        bot.send_message(cid, "تم حظر العضو بنجاح")
+
+@bot.message_handler(func=lambda message: message.text.startswith('الغاء الحظر') and message.reply_to_message is not None)
+@subscription_required
+def unban(message):
+    if str(message.from_user.id) != admin_id:
+        bot.send_message(message.chat.id, "أنت مو مشرف")
+    else:
+        cid = message.chat.id
+        uid = message.reply_to_message.from_user.id
+        bot.unban_chat_member(cid, uid)
+        bot.send_message(cid, "تم إلغاء حظر العضو بنجاح")                           
+
+@bot.message_handler(func=lambda message: message.text == 'تقييد')
+@subscription_required
+def handle_mute(message):
+    chat_id = message.chat.id
+    user_id = message.reply_to_message.from_user.id
+    bot.restrict_chat_member(chat_id, user_id, can_send_messages=False)
+    bot.reply_to(message.reply_to_message, "*- تم تقييدك في المجموعة 📛 .*", parse_mode="Markdown")
+
+@bot.message_handler(func=lambda message: message.text == 'الغاء التقييد')
+@subscription_required
+def handle_unmute(message):
+    chat_id = message.chat.id
+    user_id = message.reply_to_message.from_user.id
+    bot.restrict_chat_member(chat_id, user_id, can_send_messages=True)
+    bot.reply_to(message.reply_to_message, "*- تم إلغاء تقييدك بنجاح ✅ .*", parse_mode="Markdown")
+
+@bot.message_handler(func=lambda message: message.text and message.reply_to_message and message.text.startswith("تقييد وقتي"))
+@subscription_required
+def restrict_user(message):
+    if message.from_user.id not in [admin.user.id for admin in bot.get_chat_administrators(message.chat.id)]:
+        bot.reply_to(message, "᥀ انت مو مشرف ᥀")
+        return
+    user_id = message.reply_to_message.from_user.id
+    bot.restrict_chat_member(message.chat.id, user_id, until_date=int(time.time())+600)
+    bot.reply_to(message.reply_to_message, "᥀ تم تقييدك تقييد وقتي ᥀")
+    time.sleep(600)
+    bot.restrict_chat_member(message.chat.id, user_id, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True)
+    bot.reply_to(message.reply_to_message, "᥀ تم انتهاء مدة تقييدك هسه تكدر تحجي براحتك حبيبي ᥀")
+
+@bot.message_handler(func=lambda message: message.text == "قفل الصور")
+@subscription_required
+def lock_images(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    member = bot.get_chat_member(chat_id, user_id)
+
+    if member.status in ['administrator', 'creator']:
+        if chat_id not in locked_groups:
+            locked_groups.append(chat_id)
+        bot.reply_to(message, "*- تم قفل الصور بنجاح ✅*", parse_mode="markdown")
+    else:
+        bot.reply_to(message, "⌁︙انت مو ادمن ياعضو 💃🏻 !")
+
+@bot.message_handler(func=lambda message: message.text == "فتح الصور")
+@subscription_required
+def unlock_images(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    member = bot.get_chat_member(chat_id, user_id)
+
+    if member.status in ['administrator', 'creator']:
+        if chat_id in locked_groups:
+            locked_groups.remove(chat_id)
+        bot.reply_to(message, "*- تم فتح الصور بنجاح *✅", parse_mode="markdown")
+    else:
+        bot.reply_to(message, "⌁︙انت مو ادمن ياعضو 💃🏻 !")
+
+@bot.message_handler(content_types=['photo'])
+@subscription_required
+def handle_photos(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    member = bot.get_chat_member(chat_id, user_id)
+
+    if chat_id in locked_groups and member.status not in ['administrator', 'creator']:
+        bot.delete_message(chat_id, message.message_id)
+
+@bot.message_handler(func=lambda message: message.text == 'قفل الملصقات')
+@subscription_required
+def lock_stickers(message):
+    user = bot.get_chat_member(message.chat.id, message.from_user.id)
+    if user.status in ['administrator', 'creator']:
+        global locked_stickers
+        locked_stickers = True
+        bot.reply_to(message, "✅ تم قفل الملصقات بنجاح")
+    else:
+        bot.reply_to(message, "❌ أنت لست مشرف!")
+
+@bot.message_handler(func=lambda message: message.text == 'فتح الملصقات')
+@subscription_required
+def unlock_stickers(message):
+    user = bot.get_chat_member(message.chat.id, message.from_user.id)
+    if user.status in ['administrator', 'creator']:
+        global locked_stickers
+        locked_stickers = False
+        bot.reply_to(message, "✅ تم فتح الملصقات بنجاح")
+    else:
+        bot.reply_to(message, "❌ أنت لست مشرف!")
+
+@bot.message_handler(content_types=["sticker"])
+@subscription_required
+def delete_stickers(message):
+    if locked_stickers:
+        user = bot.get_chat_member(message.chat.id, message.from_user.id)
+        if user.status not in ['administrator', 'creator']:
+            bot.delete_message(message.chat.id, message.message_id)
+
+@bot.message_handler(func=lambda message: message.text.startswith('انطق'))
+@subscription_required
+def text_to_speech(message):
+    text = message.text.split(' ', 1)[1]
+    tts = gTTS(text=text, lang='ar')
+    tts.save('audio.mp3')
+    audio = open('audio.mp3', 'rb')
+    bot.send_audio(chat_id=message.chat.id, audio=audio, performer= '- @MMMFi', title='- تم التحويل 🧜🏻 .')
+    os.remove('audio.mp3')
+
+@bot.message_handler(func=lambda message: message.text.lower() == 'نرد')
+@subscription_required
+def roll_dice(message):
+    dice = random.randint(1, 6)
+    if dice == 6:
+        bot.reply_to(message, """مبررررررررروووووك 🥹🎉 ! 
+اخيرا فزت وحصلت على 6 👾 !
+يامحظوظ يا محظوظ 😉 .""")
+    else:
+        bot.reply_to(message, """للاسف حظك مو حلو وما حصلت 6 😔 .
+حظ اوفر اذا تريد تلعب اكتب ( `نرد` ) """, parse_mode="markdown")
+
+@bot.message_handler(func=lambda message: message.text == "ايدي المجموعة")
+@subscription_required
+def send_id(message):
+    chat_id = message.chat.id
+    bot.reply_to(message, f"🆔 *𝐈𝐃 𝐓𝐇𝐄 𝐆𝐑𝐎𝗨𝐏 :* `{chat_id}`", parse_mode="markdown")
+
+@bot.message_handler(func=lambda message: message.text == "ايدي")
+@subscription_required
+def send_id(message):
+    bot.reply_to(message, f"*🆔 𝐘𝐎𝗨𝐑 𝐓𝐄𝐋𝐄𝐆𝐑𝐀𝐌 𝐈𝐃 𝐈𝐒 :*`{message.from_user.id}`", parse_mode="markdown")
+    
+@bot.message_handler(func=lambda message: "سلة" in message.text)
+@subscription_required
+def send_basketball(message):
+    bot.send_message(message.chat.id, """تبي تلعب كرة السلة ! 
+يلا انت اتحداك ونشوف مين يفوز ؟ 🐈""")
+    bot.send_message(message.chat.id, '🏀')
+    bot.send_message(message.chat.id, """ها يل ضعيف !
+انا فزت عليك يلاا انقلع 😛😛 ؟
+اذا تبي تلعب مع البوت 🧜🏻 
+اضغط على اي كرة تعجبك بالاسفل بين الاقواس وبعدها ارسلها 🐥 .
+(`🏀`) (`🏀`) (`🏀`) (`🏀`) (`🏀`) (`🏀`) """, parse_mode="markdown")
+
+@bot.message_handler(func=lambda m: m.text == 'كرة' and not m.text.startswith('/'))
+@subscription_required
+def send_ball(message):
+    bot.reply_to(message, "⚽️")
+    bot.send_message(message.chat.id,"""ياخي انت فاشل ؟ 
+فزت عليك بـ سلة والحين افوز عليك بـ كرة ؟ 
+متى تصير قوي 🤔 ؟
+اذا تبي تلعب كرة مع البوت اكتب ( كرة ) 
+لكن اذا تبي تلعب مع اخوياك (اصدقائك ) 
+انسخ وحده من الكرات في الاسفل 👇🏻 .
+(`⚽`) (`⚽`) (`⚽`) (`⚽`) (`⚽`) (`⚽`) (`⚽`)""", parse_mode="markdown")
+
+@bot.message_handler(func=lambda message: message.text == "تفاعلي")
+@subscription_required
+def handle_command(message):
+    zkaa = random.randint(1, 100)
+    response = f"""• نسبة تفاعلك : {zkaa}% 🌝
+شد حيلك بعد حب 👍"""
+    bot.send_message(message.chat.id, response)
+
+@bot.message_handler(func=lambda message: message.text == "ذكائي")
+@subscription_required
+def handle_command(message):
+    zkaa = random.randint(1, 100)
+    response = f"""نسبة ذكائك هي : {zkaa}% 
+ماشاء الله 🫨 !"""
+    bot.send_message(message.chat.id, response)
+
+@bot.message_handler(func=lambda message: "رفع حلو" in message.text or "رفع حلوه" in message.text)
+@subscription_required
+def send_random_answer(message):
+    answers = ["ۿﯛ حلوُ مآ يحتآج 😍😂","مبروڪ أصبحت حݪو برو مآڪس 😭","صدڪني حاوݪت بس شڪݪة ميساعد 😂","تم رفعه حلوو بنجاح 🥹😘"]
+    response = random.choice(answers)
+    bot.send_message(message.chat.id, response)
+
+@bot.message_handler(func=lambda message: message.text == "غبائي")
+@subscription_required
+def handle_command(message):
+    gbaa = random.randint(1, 100)
+    response = f"""نسبة غبائك يالاثول هي : %{gbaa} 
+طيح الله حظك 😂😛"""
+    bot.send_message(message.chat.id, response)
+
+@bot.message_handler(func=lambda message: "تحبني" in message.text or "تحبيني" in message.text)
+@subscription_required
+def send_random_answer(message):
+    answers = ["لللاااا عيعيع","يعع 🤢 !","شوي بسس 🤏🏻🤏🏻","اييهه احححبكك 😉😉","كلتبن ياخفيف !!! 🤮",'شعندِيّ ، غيࢪكَ🥵♥️♥️♥️','لا محد يحبك',]
+    response = random.choice(answers)
+    bot.send_message(message.chat.id, response)
+ 
+@bot.message_handler(func=lambda message: "سورس" in message.text or "السورس" in message.text)
+@subscription_required
+def handle_source_command(message):
+    bot.reply_to(message, """- This bot is developed by Hamoudi AL-Amir 𓅂""")
+    bot.send_message(message.chat.id, "[Developer 🧑🏻‍💻 .](t.me/GoodMre)", parse_mode="markdown", disable_web_page_preview=True)
+    bot.send_message(message.chat.id, "[Channel ✅.](t.me/MMMFi)", parse_mode="markdown", disable_web_page_preview=True)
+    
+@bot.message_handler(func=lambda message: "كت" in message.text)
+@subscription_required
+def respond(message):
+    options = ["كلمتك اذا احد حشرك بالنقاش ؟","متى تصير نفسية ؟","وش الي يغلب عليك دائما .. قلبك ولا عقلك ؟","اكثر شيء تحبه بـ شكلك ؟","مع او ضد الصحبة تغني عن الحب ؟","ممكن تكره احد بدون سبب ؟","كم من عشرة تشوف صوتك حلو ؟","عشان تعيش مرتاح ؟","اكثر شيء تخاف منه ؟","من النوع اللي تعترف بسرعه ولا تجحد ؟","كيف تتعامل مع الشخص اللي يرد متأخر دايم ؟","متى تنام بالعادة ؟","شخص مستحيل تمسك ضحكتك معاه؟","دائما قوة الصداقة بـ ...؟","مودك الحين ؟","كم من عشرة تحب الهدوء ؟","لو حظك ينباع ، بكم بيكون ؟","شيء من الماضي للحين عندك ؟","شخص م تحب تناقشه ؟",'نهارك يصير أجمل بوجود ..؟','افضل هديه ممكن تناسبك؟','كلمة او عبارة مستحيل تنساها ؟','شاركنا صورة او فيديو من تصويرك?📸','عمرك شاركت بمسابقة وفزت ؟','اطول مدة قضيتها بدون اكل ؟','احقر الناس هو من ...','اكتب ثلاث اشياء تحبها ؟','اكثر مشاكلك بسبب ...?','لو احد قالك اكرهك وش بتقول له ؟','اذا احد سألك عن شيء م تعرفه تقول م اعرف ولا تتفلسف ؟','اذا كنت شخصاً غني هل توافق على الزواج من فتاة فقيرة..?','من اصدق في الحب الولد ولا البنت?.','تعتقد إنك انسان لك فايدة ?']
+    response = options[random.randint(0, len(options)-1)]
+    bot.reply_to(message, response)
+    
+keyboard = types.InlineKeyboardMarkup()
+A9 = types.InlineKeyboardButton(text="- Developer Channel ✓", url='https://t.me/MMMFi')
+keyboard.add(A9)
+
+@bot.message_handler(func=lambda message: "شعر" in message.text)
+@subscription_required
+def Get(message):
+    try:
+        song_voice =
