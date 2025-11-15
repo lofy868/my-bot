@@ -96,7 +96,7 @@ class RanksSystem:
         self.db.remove_user_rank(target_id, chat_id)
         return "✅ تم إزالة جميع الرتب من المستخدم بنجاح"
 
-# إنشاء كائن نظام الرتب
-ranks_system = RanksSystem(db)
+# لا ننشئ كائن نظام الرتب هنا - سيتم إنشاؤه في الملف الرئيسي
+# ranks_system = RanksSystem(db)
 
 print("✅ تم تحميل الجزء 2 بنجاح: نظام الرتب والصلاحيات - عربي")
