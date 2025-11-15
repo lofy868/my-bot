@@ -3,10 +3,20 @@
 # الملف الرئيسي والتشغيل - عربي بالكامل
 # ==============================
 
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 import asyncio
 from flask import Flask, request
 import os
+
+# استيراد جميع الأجزاء الأخرى
+from part_1_setup import db, BOT_TOKEN, DEVELOPER_ID, DEVELOPER_USERNAME, CHANNEL_USERNAME, BOT_NAME
+from part_2_ranks_system import ranks_system
+from part_3_admin_commands import admin_commands
+from part_4_settings_lock import settings_lock_commands
+from part_5_fun_commands import fun_commands
+from part_6_dev_commands import dev_commands
+from part_7_service_commands import service_commands
 
 # إنشاء تطبيق Flask لخادم الويب
 app = Flask(__name__)
