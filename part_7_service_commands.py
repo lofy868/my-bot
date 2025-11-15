@@ -251,7 +251,7 @@ class ServiceCommands:
         
         await update.message.reply_text(games_text, reply_markup=reply_markup, parse_mode='HTML')
 
-# إنشاء كائن الأوامر الخدمية
-service_commands = ServiceCommands(db, ranks_system)
+# لا ننشئ كائن الأوامر الخدمية هنا - سيتم إنشاؤه في الملف الرئيسي
+# service_commands = ServiceCommands(db, ranks_system)
 
 print("✅ تم تحميل الجزء 7 بنجاح: الأوامر الخدمية (م6) - عربي")
