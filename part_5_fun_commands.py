@@ -277,7 +277,7 @@ class FunCommands:
         except:
             await update.message.reply_text("❌ لا يمكن العثور على معلومات الشريك")
 
-# إنشاء كائن أوامر التسلية
-fun_commands = FunCommands(db, ranks_system)
+# لا ننشئ كائن أوامر التسلية هنا - سيتم إنشاؤه في الملف الرئيسي
+# fun_commands = FunCommands(db, ranks_system)
 
 print("✅ تم تحميل الجزء 5 بنجاح: أوامر التسلية (م4) - عربي")
