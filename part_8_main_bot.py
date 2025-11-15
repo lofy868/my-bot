@@ -10,13 +10,22 @@ from flask import Flask, request
 import os
 
 # استيراد جميع الأجزاء الأخرى
-from part_1_setup import db, BOT_TOKEN, DEVELOPER_ID, DEVELOPER_USERNAME, CHANNEL_USERNAME, BOT_NAME
-from part_2_ranks_system import ranks_system
-from part_3_admin_commands import admin_commands
-from part_4_settings_lock import settings_lock_commands
-from part_5_fun_commands import fun_commands
-from part_6_dev_commands import dev_commands
-from part_7_service_commands import service_commands
+from part_1_setup import Database, BOT_TOKEN, DEVELOPER_ID, DEVELOPER_USERNAME, CHANNEL_USERNAME, BOT_NAME
+from part_2_ranks_system import RanksSystem
+from part_3_admin_commands import AdminCommands
+from part_4_settings_lock import SettingsAndLockCommands
+from part_5_fun_commands import FunCommands
+from part_6_dev_commands import DevCommands
+from part_7_service_commands import ServiceCommands
+
+# إنشاء كائنات الأساسية هنا في الملف الرئيسي
+db = Database()
+ranks_system = RanksSystem(db)
+admin_commands = AdminCommands(db, ranks_system)
+settings_lock_commands = SettingsAndLockCommands(db, ranks_system)
+fun_commands = FunCommands(db, ranks_system)
+dev_commands = DevCommands(db, ranks_system)
+service_commands = ServiceCommands(db, ranks_system)
 
 # إنشاء تطبيق Flask لخادم الويب
 app = Flask(__name__)
