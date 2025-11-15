@@ -5,6 +5,11 @@
 
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 import asyncio
+from flask import Flask, request
+import os
+
+# إنشاء تطبيق Flask لخادم الويب
+app = Flask(__name__)
 
 class LofyBot:
     def __init__(self):
@@ -179,24 +184,74 @@ class LofyBot:
         if reply:
             reply_text, reply_type = reply
             await update.message.reply_text(reply_text)
-    
-    def run_bot(self):
-        """تشغيل البوت"""
-        print(f"🚀 بدء تشغيل بوت {BOT_NAME}...")
-        print(f"👤 المطور: {DEVELOPER_USERNAME}")
-        print(f"🆔 أيدي المطور: {DEVELOPER_ID}")
-        
-        # إنشاء تطبيق البوت
-        self.application = Application.builder().token(BOT_TOKEN).build()
-        
-        # إعداد ال handlers
-        self.setup_handlers()
-        
-        # بدء البوت
-        print("✅ البوت يعمل الآن...")
-        self.application.run_polling()
 
-# ==================== التشغيل الرئيسي ====================
+# إنشاء كائن البوت
+bot = LofyBot()
+
+# routes لـ Flask
+@app.route('/')
+def home():
+    return f"""
+    <html>
+        <head>
+            <title>{BOT_NAME} Bot</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; }}
+                .arabic {{ direction: rtl; }}
+            </style>
+        </head>
+        <body>
+            <div class="arabic">
+                <h1>🤖 بوت {BOT_NAME}</h1>
+                <p>البوت يعمل بنجاح على Render! 🎉</p>
+                <p>👤 المطور: {DEVELOPER_USERNAME}</p>
+                <p>🔗 قناة البوت: {CHANNEL_USERNAME}</p>
+            </div>
+        </body>
+    </html>
+    """
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """معالجة webhook من Telegram"""
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = Update.de_json(json_string, bot.application.bot)
+        bot.application.process_update(update)
+        return 'OK'
+    return 'ERROR'
+
+@app.route('/health')
+def health_check():
+    """فحص صحة التطبيق"""
+    return {'status': 'healthy', 'bot': BOT_NAME, 'developer': DEVELOPER_USERNAME}
+
+# التشغيل الرئيسي
 if __name__ == "__main__":
-    bot = LofyBot()
-    bot.run_bot()
+    # إنشاء تطبيق البوت
+    bot.application = Application.builder().token(BOT_TOKEN).build()
+    bot.setup_handlers()
+    
+    # الحصول على البورت من Render
+    port = int(os.environ.get('PORT', 5000))
+    
+    print(f"🚀 بدء تشغيل بوت {BOT_NAME} على المنفذ {port}...")
+    print(f"👤 المطور: {DEVELOPER_USERNAME}")
+    print(f"🆔 أيدي المطور: {DEVELOPER_ID}")
+    
+    # استخدام webhook إذا كان على Render
+    render_url = os.environ.get('RENDER_EXTERNAL_URL')
+    if render_url:
+        # تشغيل على Render باستخدام webhook
+        webhook_url = f"{render_url}/webhook"
+        bot.application.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path="webhook",
+            webhook_url=webhook_url
+        )
+        print(f"✅ تم تعيين webhook: {webhook_url}")
+    else:
+        # تشغيل محلي باستخدام polling
+        print("🔍 التشغيل المحلي باستخدام polling...")
+        bot.application.run_polling()
