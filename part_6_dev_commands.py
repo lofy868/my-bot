@@ -214,7 +214,7 @@ class DevCommands:
         
         await update.message.reply_text(f"✅ تم إضافة الرد العام '{trigger}' بنجاح")
 
-# إنشاء كائن أوامر المطور
-dev_commands = DevCommands(db, ranks_system)
+# لا ننشئ كائن أوامر المطور هنا - سيتم إنشاؤه في الملف الرئيسي
+# dev_commands = DevCommands(db, ranks_system)
 
 print("✅ تم تحميل الجزء 6 بنجاح: أوامر المطور (م5) - عربي")
