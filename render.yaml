@@ -1,7 +1,18 @@
 services:
   - type: web
-    name: lofy-bot
+    name: lofy-telegram-bot
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
+    startCommand: python part_8_main_bot.py
+    envVars:
+      - key: BOT_TOKEN
+        value: "8434698011:AAFI4P7_MGQvz8RMm9KjbOXIt-hKoMhThcc"
+      - key: DEVELOPER_ID
+        value: "8092119482"
+      - key: DEVELOPER_USERNAME
+        value: "@LOFY_25"
+      - key: CHANNEL_USERNAME
+        value: "@lofy_2000"
+      - key: BOT_NAME
+        value: "لـــوفي"
