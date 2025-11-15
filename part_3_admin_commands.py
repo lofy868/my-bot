@@ -228,7 +228,7 @@ class AdminCommands:
         except Exception as e:
             await update.message.reply_text("❌ لا يمكنني حظر هذا المستخدم")
 
-# إنشاء كائن أوامر الإدارة
-admin_commands = AdminCommands(db, ranks_system)
+# لا ننشئ كائن أوامر الإدارة هنا - سيتم إنشاؤه في الملف الرئيسي
+# admin_commands = AdminCommands(db, ranks_system)
 
 print("✅ تم تحميل الجزء 3 بنجاح: أوامر الإدارة (م1) - عربي")
