@@ -11,11 +11,11 @@ import os
 from datetime import datetime
 
 # ====================  الإعدادات الأساسية  ====================
-BOT_TOKEN = "8434698011:AAFI4P7_MGQvz8RMm9KjbOXIt-hKoMhThcc"
-DEVELOPER_ID = 8092119482
-DEVELOPER_USERNAME = "@LOFY_25"
-CHANNEL_USERNAME = "@lofy_2000"
-BOT_NAME = "لـــوفي"
+BOT_TOKEN = os.environ.get('BOT_TOKEN', '8434698011:AAFI4P7_MGQvz8RMm9KjbOXIt-hKoMhThcc')
+DEVELOPER_ID = int(os.environ.get('DEVELOPER_ID', 8092119482))
+DEVELOPER_USERNAME = os.environ.get('DEVELOPER_USERNAME', '@LOFY_25')
+CHANNEL_USERNAME = os.environ.get('CHANNEL_USERNAME', '@lofy_2000')
+BOT_NAME = os.environ.get('BOT_NAME', 'لـــوفي')
 
 # إعداد التسجيل
 logging.basicConfig(
