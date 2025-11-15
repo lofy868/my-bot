@@ -165,7 +165,7 @@ class SettingsAndLockCommands:
         except Exception as e:
             await update.message.reply_text("❌ لا يمكنني إنشاء رابط للمجموعة")
 
-# إنشاء كائن الإعدادات والقفل
-settings_lock_commands = SettingsAndLockCommands(db, ranks_system)
+# لا ننشئ كائن الإعدادات والقفل هنا - سيتم إنشاؤه في الملف الرئيسي
+# settings_lock_commands = SettingsAndLockCommands(db, ranks_system)
 
 print("✅ تم تحميل الجزء 4 بنجاح: الإعدادات والقفل (م2 + م3) - عربي")
